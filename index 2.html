@@ -1,0 +1,262 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Flor amarilla — ecuación polar</title>
+  <style>
+    :root {
+      --bg: #0b1020;
+      --card: #121831;
+      --text: #e9eef7;
+      --muted: #9fb0d0;
+      --accent: #ffd900;
+      --stroke: #1b2553;
+      --leaf: #2aa15a;
+      --center: #ffb000;
+    }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0; padding: 24px; font-family: system-ui, -apple-system, Segoe UI, Roboto, Ubuntu, Cantarell, Noto Sans, Helvetica, Arial, "Apple Color Emoji", "Segoe UI Emoji";
+      background: radial-gradient(1200px 600px at 10% -10%, #121b3e, var(--bg));
+      color: var(--text);
+      min-height: 100dvh; display: grid; place-items: center;
+    }
+    .wrap { width: 100%; max-width: 980px; display: grid; gap: 18px; }
+    .title { display:flex; align-items: baseline; gap: 12px; }
+    h1 { margin: 0; font-size: clamp(1.2rem, 1.2rem + 2vw, 2rem); font-weight: 800; letter-spacing: .2px; }
+    p.sub { margin: 0; color: var(--muted); }
+    .card {
+      background: linear-gradient(135deg, rgba(255,255,255,0.03), rgba(255,255,255,0.00));
+      border: 1px solid rgba(255,255,255,0.08);
+      border-radius: 18px; padding: 16px;
+      box-shadow: 0 10px 30px rgba(0,0,0,.35);
+    }
+    .controls { display: grid; grid-template-columns: repeat(6, minmax(0,1fr)); gap: 12px; align-items: end; }
+    .controls .field { grid-column: span 2; }
+    .controls .field.wide { grid-column: span 3; }
+    label { display: block; font-size: 12px; color: var(--muted); margin-bottom: 6px; }
+    input[type="number"], input[type="range"], select {
+      width: 100%; padding: 10px 12px; border-radius: 12px; border: 1px solid rgba(255,255,255,.12);
+      background: #0f1430; color: var(--text);
+    }
+    input[type="range"] { height: 34px; }
+    button {
+      padding: 12px 16px; border-radius: 14px; border: 1px solid rgba(255,255,255,.12);
+      background: linear-gradient(180deg, rgba(255,217,0,.25), rgba(255,217,0,.06));
+      color: #fff; font-weight: 700; letter-spacing: .2px; cursor: pointer;
+      transition: transform .08s ease, box-shadow .2s ease; backdrop-filter: blur(6px);
+    }
+    button:hover { transform: translateY(-1px); box-shadow: 0 10px 20px rgba(255,217,0,.15); }
+    .canvas-card { display: grid; place-items: center; padding: 0; overflow: hidden; }
+    svg { width: min(100%, 560px); height: auto; display: block; background: radial-gradient(380px 200px at 50% 35%, rgba(255,255,255,.04), rgba(255,255,255,0)); }
+    .hint { color: var(--muted); font-size: 12px; }
+    .eq { font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace; color: #c8d6ff; }
+    .footer { color: var(--muted); font-size: 12px; text-align: center; }
+  </style>
+</head>
+<body>
+  <div class="wrap">
+    <div class="title">
+      <h1>Flor amarilla para Star (se que no es 21 pero es que lo medio aprendi a hacer y se me hizo lindo)</h1>
+      <p class="sub">Curva rosa: <span class="eq">r(θ) = a · sin(k·θ)</span></p>
+    </div>
+
+    <div class="card controls">
+      <div class="field">
+        <label for="k">k (entero ≥ 1)</label>
+        <input id="k" type="number" value="4" min="1" step="1" />
+        <div class="hint">Si <b>k</b> es impar → pétalos = <b>k</b>; si es par → pétalos = <b>2k</b>.</div>
+      </div>
+      <div class="field">
+        <label for="a">a (tamaño)</label>
+        <input id="a" type="range" value="160" min="60" max="220" />
+      </div>
+      <div class="field">
+        <label for="rot">Rotación (°)</label>
+        <input id="rot" type="range" value="0" min="0" max="360" />
+      </div>
+      <div class="field">
+        <label for="thickness">Grosor de trazo</label>
+        <input id="thickness" type="range" value="2" min="0" max="6" />
+      </div>
+      <div class="field wide">
+        <label for="softness">Suavizado (muestras)</label>
+        <input id="softness" type="range" value="2400" min="600" max="6000" step="100" />
+      </div>
+      <div class="field" style="display:flex; gap:8px; align-items:end;">
+        <button id="draw">Generar flor</button>
+        <button id="clear" title="Borrar">Borrar</button>
+      </div>
+    </div>
+
+    <div class="card canvas-card">
+      <!-- Usamos SVG con un viewBox centrado para graficar la curva polar -->
+      <svg id="svg" viewBox="-300 -340 600 640" aria-label="Lienzo de la flor">
+        <!-- Guías opcionales -->
+        <g id="guides"></g>
+        <!-- Flor -->
+        <g id="flower"></g>
+      </svg>
+    </div>
+
+    <div class="footer">Hecho con SVG y JavaScript. La figura amarilla está generada a partir de la ecuación polar <span class="eq">r(θ) = a·sin(k·θ)</span> muestreada de <span class="eq">0</span> a <span class="eq">2π</span>.</div>
+  </div>
+
+  <script>
+    const svg = document.getElementById('svg');
+    const gFlower = document.getElementById('flower');
+    const gGuides = document.getElementById('guides');
+
+    const elK = document.getElementById('k');
+    const elA = document.getElementById('a');
+    const elRot = document.getElementById('rot');
+    const elSoft = document.getElementById('softness');
+    const elThick = document.getElementById('thickness');
+    const btnDraw = document.getElementById('draw');
+    const btnClear = document.getElementById('clear');
+
+    // Dibuja una rosa polar r(θ) = a * sin(kθ)
+    function drawRose({ a = 160, k = 4, samples = 2400, rotationDeg = 0, strokeWidth = 2 } = {}) {
+      // Limpia flor previa
+      gFlower.innerHTML = '';
+
+      // Opcional: tallo sencillo (segmento) y hoja
+      const stem = document.createElementNS('http://www.w3.org/2000/svg', 'path');
+      stem.setAttribute('d', `M 0 40 C -12 130, 12 210, 0 300`);
+      stem.setAttribute('fill', 'none');
+      stem.setAttribute('stroke', 'rgba(42,161,90,.9)');
+      stem.setAttribute('stroke-width', Math.max(1, strokeWidth - 0.5));
+      stem.setAttribute('stroke-linecap', 'round');
+      gFlower.appendChild(stem);
+
+      const leaf = document.createElementNS('http://www.w3.org/2000/svg', 'path');
+      leaf.setAttribute('d', `M 0 180 C 80 160, 80 120, 10 110 C 60 135, 20 170, 0 180 Z`);
+      leaf.setAttribute('fill', 'rgba(42,161,90,.9)');
+      leaf.setAttribute('stroke', 'rgba(29,120,64,.9)');
+      leaf.setAttribute('stroke-width', 1);
+      gFlower.appendChild(leaf);
+
+      // Petalos por ecuación polar
+      const path = document.createElementNS('http://www.w3.org/2000/svg', 'path');
+      const rot = rotationDeg * Math.PI / 180;
+
+      // Construimos el contorno muestreando θ ∈ [0, 2π]
+      let d = '';
+      for (let i = 0; i <= samples; i++) {
+        const t = (i / samples) * Math.PI * 2; // θ
+        const r = a * Math.sin(k * t);
+        // Soportar radios negativos reflejando 180° (propiedad de coordenadas polares)
+        const rr = Math.abs(r);
+        const ang = r >= 0 ? t : t + Math.PI;
+        const x = rr * Math.cos(ang + rot);
+        const y = rr * Math.sin(ang + rot);
+        d += (i === 0 ? 'M' : 'L') + x.toFixed(3) + ' ' + y.toFixed(3) + ' ';
+      }
+      d += 'Z';
+
+      path.setAttribute('d', d);
+      path.setAttribute('fill', 'url(#petalFill)');
+      path.setAttribute('stroke', 'rgba(0,0,0,.45)');
+      path.setAttribute('stroke-width', String(strokeWidth));
+      path.setAttribute('filter', 'url(#glow)');
+      gFlower.appendChild(path);
+
+      // Centro de la flor (disco)
+      const center = document.createElementNS('http://www.w3.org/2000/svg', 'circle');
+      center.setAttribute('cx', '0');
+      center.setAttribute('cy', '0');
+      center.setAttribute('r', String(Math.max(10, a * 0.12)));
+      center.setAttribute('fill', 'url(#centerFill)');
+      center.setAttribute('stroke', 'rgba(0,0,0,.35)');
+      center.setAttribute('stroke-width', '1');
+      center.setAttribute('filter', 'url(#glowSoft)');
+      gFlower.appendChild(center);
+
+      // Animación de entrada sutil
+      gFlower.animate([
+        { transform: 'scale(.85)', opacity: .0 },
+        { transform: 'scale(1)', opacity: 1 }
+      ], { duration: 600, easing: 'cubic-bezier(.2,.7,.2,1)' });
+    }
+
+    // Definiciones de gradientes y filtros (una sola vez)
+    function ensureDefs() {
+      let defs = svg.querySelector('defs');
+      if (defs) return;
+      defs = document.createElementNS('http://www.w3.org/2000/svg', 'defs');
+
+      const petalFill = document.createElementNS('http://www.w3.org/2000/svg', 'radialGradient');
+      petalFill.setAttribute('id', 'petalFill');
+      petalFill.innerHTML = `
+        <stop offset="0%" stop-color="#fff07a" stop-opacity="1"/>
+        <stop offset="60%" stop-color="#ffd900" stop-opacity="1"/>
+        <stop offset="100%" stop-color="#f2c400" stop-opacity="1"/>
+      `;
+
+      const centerFill = document.createElementNS('http://www.w3.org/2000/svg', 'radialGradient');
+      centerFill.setAttribute('id', 'centerFill');
+      centerFill.innerHTML = `
+        <stop offset="0%" stop-color="#ffe08a"/>
+        <stop offset="100%" stop-color="#ffb000"/>
+      `;
+
+      const glow = document.createElementNS('http://www.w3.org/2000/svg', 'filter');
+      glow.setAttribute('id', 'glow');
+      glow.innerHTML = `
+        <feGaussianBlur stdDeviation="1.2" result="b"/>
+        <feMerge>
+          <feMergeNode in="b"/>
+          <feMergeNode in="SourceGraphic"/>
+        </feMerge>
+      `;
+
+      const glowSoft = document.createElementNS('http://www.w3.org/2000/svg', 'filter');
+      glowSoft.setAttribute('id', 'glowSoft');
+      glowSoft.innerHTML = `
+        <feGaussianBlur stdDeviation="0.8" result="b"/>
+        <feMerge>
+          <feMergeNode in="b"/>
+          <feMergeNode in="SourceGraphic"/>
+        </feMerge>
+      `;
+
+      defs.appendChild(petalFill);
+      defs.appendChild(centerFill);
+      defs.appendChild(glow);
+      defs.appendChild(glowSoft);
+      svg.appendChild(defs);
+    }
+
+    function drawGuides() {
+      gGuides.innerHTML = '';
+      const ax = document.createElementNS('http://www.w3.org/2000/svg', 'path');
+      ax.setAttribute('d', 'M -280 0 L 280 0 M 0 -320 L 0 320');
+      ax.setAttribute('stroke', 'rgba(255,255,255,.06)');
+      ax.setAttribute('stroke-width', '1');
+      gGuides.appendChild(ax);
+    }
+
+    btnDraw.addEventListener('click', () => {
+      ensureDefs();
+      drawGuides();
+      const k = parseInt(elK.value || '4', 10);
+      const a = parseFloat(elA.value || '160');
+      const rot = parseFloat(elRot.value || '0');
+      const samples = parseInt(elSoft.value || '2400', 10);
+      const strokeWidth = parseFloat(elThick.value || '2');
+      drawRose({ a, k, samples, rotationDeg: rot, strokeWidth });
+    });
+
+    btnClear.addEventListener('click', () => {
+      gFlower.innerHTML = '';
+    });
+
+    // Dibujo inicial al cargar
+    window.addEventListener('DOMContentLoaded', () => {
+      ensureDefs(); drawGuides();
+      drawRose({ a: 160, k: 4, samples: 2400, rotationDeg: 0, strokeWidth: 2 });
+    });
+  </script>
+</body>
+</html>
